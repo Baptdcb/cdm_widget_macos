@@ -102,7 +102,16 @@ class MatchService: NSObject, ObservableObject {
     @Published var errorMessage: String? = nil
     @Published var favoriteTeams: Set<Int> = []
     
-    private let apiKey = "8b1b5cd6cf104cd8b0f5c6b95e4d0fc4" // football-data.org free tier
+    // Read API key from Info.plist (FOOTBALL_DATA_API_KEY) or environment variable FOOTBALL_DATA_API_KEY
+    private var apiKey: String? {
+        if let key = Bundle.main.object(forInfoDictionaryKey: "FOOTBALL_DATA_API_KEY") as? String, !key.isEmpty {
+            return key
+        }
+        if let env = ProcessInfo.processInfo.environment["FOOTBALL_DATA_API_KEY"], !env.isEmpty {
+            return env
+        }
+        return nil
+    }
     private let baseURL = "https://api.football-data.org/v4"
     
     override init() {
@@ -114,16 +123,27 @@ class MatchService: NSObject, ObservableObject {
     
     func fetchWorldCupMatches() {
         isLoading = true
+        // Prefer official API if API key is configured
+        guard let key = apiKey else {
+            // No API key configured — fallback to public data source
+            Task {
+                await fetchWorldCupJSONFallback()
+            }
+            self.errorMessage = "Aucune clé API configurée pour football-data.org. Utilisation d'une source publique en fallback."
+            self.isLoading = false
+            return
+        }
+
         let urlString = "\(baseURL)/competitions/WC/matches?status=SCHEDULED,LIVE,FINISHED"
-        guard let url = URL(string: urlString) else { 
+        guard let url = URL(string: urlString) else {
             self.errorMessage = "URL invalide"
             self.isLoading = false
-            return 
+            return
         }
-        
+
         var request = URLRequest(url: url)
-        request.setValue(apiKey, forHTTPHeaderField: "X-Auth-Token")
-        
+        request.setValue(key, forHTTPHeaderField: "X-Auth-Token")
+
         URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             DispatchQueue.main.async {
                 if let error = error {
@@ -131,13 +151,13 @@ class MatchService: NSObject, ObservableObject {
                     self?.isLoading = false
                     return
                 }
-                
+
                 guard let data = data else {
                     self?.errorMessage = "Pas de données reçues"
                     self?.isLoading = false
                     return
                 }
-                
+
                 do {
                     let decoder = JSONDecoder()
                     decoder.dateDecodingStrategy = .iso8601
@@ -151,6 +171,47 @@ class MatchService: NSObject, ObservableObject {
                 }
             }
         }.resume()
+    }
+
+    // Fallback: try public World Cup JSON (best-effort decoding)
+    private func fetchWorldCupJSONFallback() async {
+        guard let url = URL(string: "https://worldcupjson.net/api/v1/matches") else { return }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
+            var newMatches: [Match] = []
+            var teamIdCounter = -1
+            let iso = ISO8601DateFormatter()
+            for item in json {
+                let id = (item["fifa_id"] as? String) ?? (item["id"] as? String) ?? UUID().uuidString
+                let homeName = (item["home_team_country"] as? String) ?? (item["home_team"] as? String) ?? ""
+                let awayName = (item["away_team_country"] as? String) ?? (item["away_team"] as? String) ?? ""
+                let dateStr = (item["datetime"] as? String) ?? (item["date"] as? String) ?? ""
+                let date = iso.date(from: dateStr) ?? Date()
+                let statusStr = (item["status"] as? String) ?? "SCHEDULED"
+                let status = statusStr.uppercased()
+                let homeGoals = (item["home_team_goals"] as? Int) ?? (item["home_team_score"] as? Int) ?? nil
+                let awayGoals = (item["away_team_goals"] as? Int) ?? (item["away_team_score"] as? Int) ?? nil
+                let stadium = (item["venue"] as? String) ?? (item["stadium"] as? String) ?? ""
+
+                teamIdCounter -= 1
+                let homeTeam = Team(id: teamIdCounter, name: homeName, crest: nil, tla: String(homeName.prefix(3)).uppercased())
+                teamIdCounter -= 1
+                let awayTeam = Team(id: teamIdCounter, name: awayName, crest: nil, tla: String(awayName.prefix(3)).uppercased())
+
+                let score = Score(fullTime: Score.FullTime(home: homeGoals, away: awayGoals), halfTime: nil)
+                let match = Match(id: id, homeTeam: homeTeam, awayTeam: awayTeam, utcDate: date, status: status, score: score)
+                newMatches.append(match)
+            }
+            if !newMatches.isEmpty {
+                DispatchQueue.main.async {
+                    self.matches = newMatches.sorted { $0.utcDate < $1.utcDate }
+                    self.errorMessage = nil
+                }
+            }
+        } catch {
+            // silent fallback
+        }
     }
     
     func fetchWorldCupStandings() {

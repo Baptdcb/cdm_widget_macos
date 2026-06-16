@@ -37,7 +37,7 @@ struct MatchCard: View {
             HStack(spacing: 20) {
                 // Home Team
                 VStack(spacing: 8) {
-                    FlagImage(url: match.homeTeam.flagURL)
+                    FlagImage(url: match.homeTeam.flagURL, fallbackCountry: match.homeTeam.name)
                         .frame(height: 40)
                     
                     Text(match.homeTeam.tla ?? match.homeTeam.name)
@@ -65,7 +65,7 @@ struct MatchCard: View {
                 
                 // Away Team
                 VStack(spacing: 8) {
-                    FlagImage(url: match.awayTeam.flagURL)
+                    FlagImage(url: match.awayTeam.flagURL, fallbackCountry: match.awayTeam.name)
                         .frame(height: 40)
                     
                     Text(match.awayTeam.tla ?? match.awayTeam.name)
@@ -107,7 +107,7 @@ struct MatchCard: View {
 
 struct FlagImage: View {
     let url: URL?
-    @State private var image: UIImage? = nil
+    let fallbackCountry: String?
     
     var body: some View {
         if let url = url {
@@ -121,16 +121,49 @@ struct FlagImage: View {
                         .resizable()
                         .scaledToFit()
                 case .failure:
-                    Rectangle()
-                        .foregroundColor(.gray.opacity(0.3))
+                    // Try fallback by country name
+                    if let fallback = fallbackCountry, let fallbackURL = FlagImage.flagURL(for: fallback) {
+                        AsyncImage(url: fallbackURL) { p in
+                            switch p {
+                            case .empty:
+                                Rectangle().foregroundColor(.gray.opacity(0.3))
+                            case .success(let img):
+                                img.resizable().scaledToFit()
+                            default:
+                                Rectangle().foregroundColor(.gray.opacity(0.3))
+                            }
+                        }
+                    } else {
+                        Rectangle().foregroundColor(.gray.opacity(0.3))
+                    }
                 @unknown default:
                     EmptyView()
+                }
+            }
+        } else if let fallback = fallbackCountry, let fallbackURL = FlagImage.flagURL(for: fallback) {
+            AsyncImage(url: fallbackURL) { phase in
+                switch phase {
+                case .empty:
+                    Rectangle().foregroundColor(.gray.opacity(0.3))
+                case .success(let image):
+                    image.resizable().scaledToFit()
+                default:
+                    Rectangle().foregroundColor(.gray.opacity(0.3))
                 }
             }
         } else {
             Rectangle()
                 .foregroundColor(.gray.opacity(0.3))
         }
+    }
+    
+    static func flagURL(for countryName: String) -> URL? {
+        let slug = countryName
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+            .folding(options: .diacriticInsensitive, locale: .current)
+            .replacingOccurrences(of: "'", with: "")
+        return URL(string: "https://countryflagsapi.com/png/\(slug)")
     }
 }
 

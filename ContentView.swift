@@ -44,13 +44,13 @@ struct ContentView: View {
                 Group {
                     switch selectedTab {
                     case 0:
-                        MatchesView(service: service)
+                        EnhancedMatchesView(service: service)
                     case 1:
                         StandingsView(service: service)
                     case 2:
                         FavoritesView(service: service)
                     default:
-                        MatchesView(service: service)
+                        EnhancedMatchesView(service: service)
                     }
                 }
                 
