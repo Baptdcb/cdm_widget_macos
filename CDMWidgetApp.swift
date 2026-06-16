@@ -1,5 +1,4 @@
 import SwiftUI
-import WidgetKit
 
 @main
 struct CDMWidgetApp: App {
@@ -8,6 +7,6 @@ struct CDMWidgetApp: App {
             ContentView()
         }
         .windowStyle(.hiddenTitleBar)
-        .windowResizability(.recommended)
+        .windowResizability(.contentSize)
     }
 }

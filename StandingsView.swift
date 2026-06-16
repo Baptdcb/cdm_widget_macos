@@ -6,98 +6,106 @@ struct StandingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             Text("Classements")
-                .font(.title2)
+                .font(.title3)
                 .fontWeight(.bold)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
+                .foregroundColor(.white)
             
-            ScrollView {
-                VStack(spacing: 16) {
-                    ForEach(service.standings) { group in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(group.name)
-                                .font(.headline)
-                                .padding(.horizontal)
-                            
-                            VStack(spacing: 0) {
-                                // Header
-                                HStack {
-                                    Text("Équipe")
-                                        .font(.caption2)
-                                        .fontWeight(.semibold)
-                                    Spacer()
-                                    HStack(spacing: 12) {
-                                        Text("J").frame(width: 20)
-                                        Text("G").frame(width: 20)
-                                        Text("N").frame(width: 20)
-                                        Text("P").frame(width: 20)
-                                        Text("Pts").frame(width: 24)
-                                    }
-                                    .font(.caption2)
-                                    .fontWeight(.semibold)
-                                }
-                                .padding(.horizontal)
-                                .padding(.vertical, 8)
-                                .background(Color(nsColor: .controlBackgroundColor))
+            if service.standings.isEmpty {
+                VStack {
+                    ProgressView()
+                        .tint(.blue)
+                    Text("Chargement...")
+                        .foregroundColor(.gray)
+                        .font(.caption)
+                }
+                .frame(maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    VStack(spacing: 12) {
+                        ForEach(service.standings) { standing in
+                            HStack(spacing: 12) {
+                                // Position
+                                Text("\(standing.position)")
+                                    .font(.headline)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
+                                    .frame(width: 30)
                                 
-                                Divider()
-                                
-                                // Teams
-                                ForEach(group.teams) { standing in
-                                    HStack {
-                                        HStack(spacing: 8) {
-                                            Text(standing.team.flag)
-                                                .font(.system(size: 20))
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text(standing.team.name)
-                                                    .font(.caption)
-                                                    .fontWeight(.semibold)
-                                                Text(standing.team.code)
-                                                    .font(.caption2)
-                                                    .foregroundColor(.secondary)
-                                            }
-                                        }
-                                        
-                                        Spacer()
-                                        
-                                        HStack(spacing: 12) {
-                                            Text("\(standing.played)")
-                                                .frame(width: 20)
-                                            Text("\(standing.won)")
-                                                .frame(width: 20)
-                                            Text("\(standing.drawn)")
-                                                .frame(width: 20)
-                                            Text("\(standing.lost)")
-                                                .frame(width: 20)
-                                            Text("\(standing.points)")
-                                                .frame(width: 24)
-                                                .fontWeight(.bold)
-                                        }
-                                        .font(.caption)
-                                    }
-                                    .padding(.horizontal)
-                                    .padding(.vertical, 8)
+                                // Team Flag and Name
+                                HStack(spacing: 8) {
+                                    FlagImage(url: standing.team.flagURL)
+                                        .frame(width: 24, height: 16)
                                     
-                                    if standing.id != group.teams.last?.id {
-                                        Divider()
-                                            .padding(.horizontal)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(standing.team.tla ?? standing.team.name)
+                                            .font(.caption)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.white)
+                                        Text(standing.team.name)
+                                            .font(.caption2)
+                                            .foregroundColor(.gray)
+                                    }
+                                }
+                                
+                                Spacer()
+                                
+                                // Stats
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .center, spacing: 2) {
+                                        Text("\(standing.playedGames)")
+                                            .font(.caption2)
+                                            .foregroundColor(.white)
+                                        Text("J")
+                                            .font(.caption2)
+                                            .foregroundColor(.gray)
+                                    }
+                                    
+                                    VStack(alignment: .center, spacing: 2) {
+                                        Text("\(standing.won)")
+                                            .font(.caption2)
+                                            .foregroundColor(.white)
+                                        Text("G")
+                                            .font(.caption2)
+                                            .foregroundColor(.gray)
+                                    }
+                                    
+                                    VStack(alignment: .center, spacing: 2) {
+                                        Text("\(standing.goalDifference > 0 ? "+" : "")\(standing.goalDifference)")
+                                            .font(.caption2)
+                                            .foregroundColor(standing.goalDifference > 0 ? .green : .red)
+                                        Text("DF")
+                                            .font(.caption2)
+                                            .foregroundColor(.gray)
+                                    }
+                                    
+                                    VStack(alignment: .trailing, spacing: 2) {
+                                        Text("\(standing.points)")
+                                            .font(.caption)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.blue)
+                                        Text("Pts")
+                                            .font(.caption2)
+                                            .foregroundColor(.gray)
                                     }
                                 }
                             }
-                            .background(Color(nsColor: .controlBackgroundColor))
+                            .padding()
+                            .background(Color.white.opacity(0.08))
                             .cornerRadius(8)
                         }
                     }
+                    .padding()
                 }
-                .padding()
             }
         }
     }
 }
 
 #Preview {
-    StandingsView(service: {
-        let service = MatchService()
-        return service
-    }())
+    ZStack {
+        Color.black
+        StandingsView(service: MatchService())
+    }
 }

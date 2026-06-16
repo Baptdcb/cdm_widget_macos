@@ -2,86 +2,79 @@ import SwiftUI
 
 struct MatchCard: View {
     let match: Match
-    let isFavorite: Bool
-    let onFavoriteToggle: () -> Void
+    @ObservedObject var service: MatchService
     
     var statusColor: Color {
-        switch match.status {
-        case .live:
-            return .red
-        case .upcoming:
-            return .blue
-        case .finished:
-            return .gray
-        }
+        match.isLive ? .red : match.isUpcoming ? .blue : .gray
     }
     
     var statusText: String {
-        switch match.status {
-        case .live:
-            return "EN DIRECT"
-        case .upcoming:
-            return "À VENIR"
-        case .finished:
-            return "TERMINÉ"
-        }
+        match.isLive ? "EN DIRECT 🔴" : match.isUpcoming ? "À VENIR" : "TERMINÉ"
     }
     
     var body: some View {
-        VStack(spacing: 12) {
-            // Header with date and status
+        VStack(spacing: 16) {
+            // Header
             HStack {
-                Text(match.displayDate)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                Spacer()
-                
                 HStack(spacing: 4) {
                     Circle()
                         .fill(statusColor)
                         .frame(width: 8, height: 8)
                     Text(statusText)
-                        .font(.caption2)
-                        .fontWeight(.semibold)
-                }
-            }
-            
-            // Teams and Score
-            HStack(spacing: 16) {
-                // Home Team
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text(match.homeTeam.flag)
-                        .font(.system(size: 24))
-                    Text(match.homeTeam.code)
                         .font(.caption)
-                        .fontWeight(.semibold)
-                }
-                
-                // Score
-                VStack(alignment: .center, spacing: 4) {
-                    if let homeScore = match.homeScore, let awayScore = match.awayScore {
-                        Text("\(homeScore) - \(awayScore)")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                    } else {
-                        Text("vs")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .frame(minWidth: 50)
-                
-                // Away Team
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(match.awayTeam.flag)
-                        .font(.system(size: 24))
-                    Text(match.awayTeam.code)
-                        .font(.caption)
-                        .fontWeight(.semibold)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
                 }
                 
                 Spacer()
+                
+                Text(match.displayDate)
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            
+            // Teams and Score
+            HStack(spacing: 20) {
+                // Home Team
+                VStack(spacing: 8) {
+                    FlagImage(url: match.homeTeam.flagURL)
+                        .frame(height: 40)
+                    
+                    Text(match.homeTeam.tla ?? match.homeTeam.name)
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity)
+                
+                // Score
+                VStack(spacing: 4) {
+                    if let homeScore = match.score.fullTime?.home,
+                       let awayScore = match.score.fullTime?.away {
+                        Text("\(homeScore) - \(awayScore)")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundColor(.white)
+                    } else {
+                        Text("vs")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                }
+                .frame(minWidth: 60)
+                
+                // Away Team
+                VStack(spacing: 8) {
+                    FlagImage(url: match.awayTeam.flagURL)
+                        .frame(height: 40)
+                    
+                    Text(match.awayTeam.tla ?? match.awayTeam.name)
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity)
             }
             
             // Stadium and Favorite
@@ -89,32 +82,75 @@ struct MatchCard: View {
                 HStack(spacing: 4) {
                     Image(systemName: "mappin.circle.fill")
                         .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text(match.stadium)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.blue)
+                    Text("Stade")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
                 }
                 
                 Spacer()
                 
-                Button(action: onFavoriteToggle) {
-                    Image(systemName: isFavorite ? "star.fill" : "star")
-                        .foregroundColor(isFavorite ? .yellow : .gray)
+                Button(action: {
+                    service.toggleFavorite(teamId: match.homeTeam.id)
+                }) {
+                    Image(systemName: service.isFavorite(match.homeTeam.id) ? "star.fill" : "star")
+                        .foregroundColor(service.isFavorite(match.homeTeam.id) ? .yellow : .gray)
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding()
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(8)
+        .background(Color.white.opacity(0.08))
+        .cornerRadius(12)
+    }
+}
+
+struct FlagImage: View {
+    let url: URL?
+    @State private var image: UIImage? = nil
+    
+    var body: some View {
+        if let url = url {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .empty:
+                    Rectangle()
+                        .foregroundColor(.gray.opacity(0.3))
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFit()
+                case .failure:
+                    Rectangle()
+                        .foregroundColor(.gray.opacity(0.3))
+                @unknown default:
+                    EmptyView()
+                }
+            }
+        } else {
+            Rectangle()
+                .foregroundColor(.gray.opacity(0.3))
+        }
     }
 }
 
 #Preview {
-    MatchCard(
-        match: mockMatches[2],
-        isFavorite: false,
-        onFavoriteToggle: {}
-    )
-    .padding()
+    ZStack {
+        Color.black
+        MatchCard(match: {
+            let team1 = Team(id: 1, name: "France", crest: nil, tla: "FRA")
+            let team2 = Team(id: 2, name: "Germany", crest: nil, tla: "GER")
+            return Match(
+                id: "1",
+                homeTeam: team1,
+                awayTeam: team2,
+                utcDate: Date(),
+                status: "LIVE",
+                score: Score(
+                    fullTime: Score.FullTime(home: 2, away: 1),
+                    halfTime: nil
+                )
+            )
+        }(), service: MatchService())
+    }
 }

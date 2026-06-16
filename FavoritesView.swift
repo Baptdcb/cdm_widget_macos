@@ -4,33 +4,44 @@ struct FavoritesView: View {
     @ObservedObject var service: MatchService
     
     var favoriteTeams: [Team] {
-        mockTeams.filter { service.isFavorite($0.id) }
+        var teams: [Team] = []
+        for match in service.matches {
+            if service.isFavorite(match.homeTeam.id) && !teams.contains(match.homeTeam) {
+                teams.append(match.homeTeam)
+            }
+            if service.isFavorite(match.awayTeam.id) && !teams.contains(match.awayTeam) {
+                teams.append(match.awayTeam)
+            }
+        }
+        return teams
     }
     
     var upcomingFavoriteMatches: [Match] {
         service.upcomingMatches.filter { match in
-            favoriteTeams.contains { $0.id == match.homeTeam.id || $0.id == match.awayTeam.id }
+            service.isFavorite(match.homeTeam.id) || service.isFavorite(match.awayTeam.id)
         }
     }
     
     var body: some View {
         VStack(spacing: 0) {
             Text("Favoris")
-                .font(.title2)
+                .font(.title3)
                 .fontWeight(.bold)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
+                .foregroundColor(.white)
             
             if favoriteTeams.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "star")
                         .font(.system(size: 40))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.gray)
                     Text("Aucune équipe favorite")
                         .font(.headline)
-                    Text("Marquez vos équipes préférées pour suivre leurs matchs")
+                        .foregroundColor(.white)
+                    Text("Cliquez sur l'étoile pour suivre vos équipes")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.gray)
                         .multilineTextAlignment(.center)
                 }
                 .frame(maxHeight: .infinity)
@@ -38,18 +49,23 @@ struct FavoritesView: View {
                 ScrollView {
                     VStack(spacing: 16) {
                         // Favorite Teams
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 12) {
                             Text("Équipes Favorites")
                                 .font(.headline)
+                                .foregroundColor(.white)
+                                .padding(.horizontal)
                             
                             HStack {
-                                ForEach(favoriteTeams) { team in
-                                    VStack(spacing: 4) {
-                                        Text(team.flag)
-                                            .font(.system(size: 32))
-                                        Text(team.code)
+                                ForEach(favoriteTeams.prefix(4)) { team in
+                                    VStack(spacing: 8) {
+                                        FlagImage(url: team.flagURL)
+                                            .frame(height: 40)
+                                        
+                                        Text(team.tla ?? team.name)
                                             .font(.caption2)
-                                            .fontWeight(.semibold)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.white)
+                                            .lineLimit(1)
                                         
                                         Button(action: {
                                             service.toggleFavorite(teamId: team.id)
@@ -61,35 +77,32 @@ struct FavoritesView: View {
                                         .buttonStyle(.plain)
                                     }
                                     .padding()
-                                    .background(Color(nsColor: .controlBackgroundColor))
+                                    .background(Color.white.opacity(0.08))
                                     .cornerRadius(8)
                                 }
                                 Spacer()
                             }
+                            .padding(.horizontal)
                         }
                         
                         // Upcoming Matches
                         if !upcomingFavoriteMatches.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
+                            VStack(alignment: .leading, spacing: 12) {
                                 Text("Prochains Matchs")
                                     .font(.headline)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal)
                                 
                                 VStack(spacing: 12) {
                                     ForEach(upcomingFavoriteMatches.prefix(5)) { match in
-                                        MatchCard(
-                                            match: match,
-                                            isFavorite: true,
-                                            onFavoriteToggle: {
-                                                service.toggleFavorite(teamId: match.homeTeam.id)
-                                                service.toggleFavorite(teamId: match.awayTeam.id)
-                                            }
-                                        )
+                                        MatchCard(match: match, service: service)
                                     }
                                 }
+                                .padding(.horizontal)
                             }
                         }
                     }
-                    .padding()
+                    .padding(.vertical)
                 }
             }
         }
@@ -97,10 +110,8 @@ struct FavoritesView: View {
 }
 
 #Preview {
-    FavoritesView(service: {
-        let service = MatchService()
-        service.toggleFavorite(teamId: "fra")
-        service.toggleFavorite(teamId: "eng")
-        return service
-    }())
+    ZStack {
+        Color.black
+        FavoritesView(service: MatchService())
+    }
 }
